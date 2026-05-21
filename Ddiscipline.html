@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DDiscipline</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif;background:linear-gradient(180deg,#0b0b0b,#121212);color:#fff}
+
+.app{max-width:420px;margin:auto;min-height:100vh;display:flex;flex-direction:column}
+.header{padding:18px;position:sticky;top:0;background:rgba(11,11,11,0.7);backdrop-filter:blur(10px);z-index:10}
+.title{font-size:22px;font-weight:600}
+.sub{font-size:12px;color:#aaa}
+
+.card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);margin:10px 12px;padding:14px;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,0.4)}
+
+.task{display:flex;align-items:center;justify-content:space-between;margin:10px 0}
+.task input[type=text]{flex:1;background:transparent;border:none;color:#fff;font-size:14px}
+input[type=checkbox]{width:18px;height:18px;accent-color:#00ffae}
+
+.add{margin-top:10px;width:100%;background:#1f1f1f;border-radius:10px}
+
+.progressWrap{padding:12px}
+.progress{height:6px;background:#222;border-radius:10px;overflow:hidden}
+.bar{height:100%;width:0;background:linear-gradient(90deg,#00ffae,#00cfff)}
+
+.week{display:flex;overflow-x:auto;gap:8px;padding:10px 12px}
+.day{min-width:50px;text-align:center;padding:8px;border-radius:12px;background:#1a1a1a;font-size:12px;transition:.2s}
+.active{background:#00ffae;color:#000}
+
+.bottom{position:fixed;bottom:0;width:100%;max-width:420px;display:flex;justify-content:space-around;background:rgba(20,20,20,0.9);backdrop-filter:blur(10px);padding:10px 0;border-top:1px solid rgba(255,255,255,0.05)}
+.tab{font-size:12px;color:#777;cursor:pointer}
+.tab.active{color:#00ffae}
+
+textarea{width:100%;background:#111;border:none;color:#fff;padding:10px;border-radius:12px}
+
+.statBox{display:flex;justify-content:space-between;font-size:14px;margin-top:8px}
+
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="header">
+  <div class="title">Ddiscipline</div>
+  <div class="sub" id="dayCount"></div>
+</div>
+
+<div class="week" id="week"></div>
+
+<div id="todayView"></div>
+
+<div id="statsView" class="hidden">
+  <div class="card">
+    <div>Weekly Stats</div>
+    <div class="statBox"><span>Completed</span><span id="doneCount"></span></div>
+    <div class="statBox"><span>Total Tasks</span><span id="totalCount"></span></div>
+    <div class="statBox"><span>Completion %</span><span id="percent"></span></div>
+  </div>
+</div>
+
+<div class="progressWrap">
+  <div class="progress"><div class="bar" id="bar"></div></div>
+</div>
+
+<div class="card" id="notesCard">
+  <textarea id="notes" placeholder="Reflection..."></textarea>
+</div>
+
+<div class="bottom">
+  <div class="tab active" onclick="switchTab('today')">Today</div>
+  <div class="tab" onclick="switchTab('stats')">Stats</div>
+</div>
+
+</div>
+
+<script>
+const defaultData={Habits:[{text:"Wake early",done:false}],Study:[{text:"Study",done:false}],Health:[{text:"Water",done:false}]}
+
+let current=new Date()
+const todayView=document.getElementById("todayView")
+const week=document.getElementById("week")
+const notes=document.getElementById("notes")
+
+function key(date){return "day-"+date}
+function notesKey(date){return "notes-"+date}
+
+function load(date){return JSON.parse(localStorage.getItem(key(date)))||JSON.parse(JSON.stringify(defaultData))}
+function save(date,data){localStorage.setItem(key(date),JSON.stringify(data))}
+
+function render(){
+const date=current.toISOString().split("T")[0]
+const data=load(date)
+todayView.innerHTML=""
+
+Object.keys(data).forEach(sec=>{
+const card=document.createElement("div")
+card.className="card"
+
+const title=document.createElement("div")
+title.innerText=sec
+card.appendChild(title)
+
+ data[sec].forEach((t,i)=>{
+const row=document.createElement("div")
+row.className="task"
+
+const input=document.createElement("input")
+input.type="text"
+input.value=t.text
+input.oninput=()=>{t.text=input.value;save(date,data)}
+
+const check=document.createElement("input")
+check.type="checkbox"
+check.checked=t.done
+check.onchange=()=>{t.done=check.checked;save(date,data);progress()}
+
+row.appendChild(input)
+row.appendChild(check)
+card.appendChild(row)
+})
+
+const btn=document.createElement("button")
+btn.className="add"
+btn.innerText="+ add"
+btn.onclick=()=>{data[sec].push({text:"new",done:false});save(date,data);render()}
+
+card.appendChild(btn)
+todayView.appendChild(card)
+})
+
+notes.value=localStorage.getItem(notesKey(date))||""
+notes.oninput=()=>localStorage.setItem(notesKey(date),notes.value)
+
+progress()
+renderWeek()
+updateDay()
+calcStats()
+}
+
+function progress(){
+const checks=document.querySelectorAll("input[type=checkbox]")
+let d=0
+checks.forEach(c=>{if(c.checked)d++})
+document.getElementById("bar").style.width=(checks.length?d/checks.length*100:0)+"%"
+}
+
+function renderWeek(){
+week.innerHTML=""
+let start=new Date(current)
+start.setDate(current.getDate()-current.getDay())
+
+for(let i=0;i<7;i++){
+let d=new Date(start)
+d.setDate(start.getDate()+i)
+let str=d.toISOString().split("T")[0]
+
+const box=document.createElement("div")
+box.className="day"
+if(d.toDateString()===current.toDateString())box.classList.add("active")
+box.innerText=d.getDate()
+box.onclick=()=>{current=d;render()}
+week.appendChild(box)
+}
+}
+
+function updateDay(){
+const base=new Date("2026-01-01")
+const diff=Math.floor((current-base)/(1000*60*60*24))+1
+
+document.getElementById("dayCount").innerText="Day "+diff
+}
+
+function calcStats(){
+let done=0,total=0
+let start=new Date(current)
+start.setDate(current.getDate()-current.getDay())
+
+for(let i=0;i<7;i++){
+let d=new Date(start)
+d.setDate(start.getDate()+i)
+let data=load(d.toISOString().split("T")[0])
+
+Object.values(data).forEach(arr=>{
+arr.forEach(t=>{total++; if(t.done)done++})
+})
+}
+
+document.getElementById("doneCount").innerText=done
+document.getElementById("totalCount").innerText=total
+document.getElementById("percent").innerText= total?Math.round(done/total*100)+"%":"0%"
+}
+
+function switchTab(tab){
+document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'))
+if(tab==='today'){
+  document.querySelectorAll('.tab')[0].classList.add('active')
+  todayView.classList.remove('hidden')
+  document.getElementById('statsView').classList.add('hidden')
+  document.getElementById('notesCard').classList.remove('hidden')
+}else{
+  document.querySelectorAll('.tab')[1].classList.add('active')
+  todayView.classList.add('hidden')
+  document.getElementById('statsView').classList.remove('hidden')
+  document.getElementById('notesCard').classList.add('hidden')
+}
+}
+
+render()
+</script>
+</body>
+</html>
+
